@@ -177,3 +177,16 @@ ObjectiveRecord supports CoreData's in-memory store. In any place, before your t
 
 ObjectiveRecord is available under the MIT license. See the LICENSE file
 for more information.
+
+## Notes
+
+Pushing Changes to GitHub
+```
+git push origin context
+```
+
+Keeping Your Fork in Sync
+```
+git pull upstream master
+git push origin master
+```
