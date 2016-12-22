@@ -43,4 +43,7 @@
 - (NSURL *)applicationDocumentsDirectory;
 - (NSURL *)applicationSupportDirectory;
 
+#pragma mark - Additions
+@property (readonly, nonatomic) NSManagedObjectContext *backgroundManagedObjectContext;
+
 @end

@@ -29,6 +29,8 @@
 @synthesize databaseName = _databaseName;
 @synthesize modelName = _modelName;
 
+@synthesize backgroundManagedObjectContext = _backgroundManagedObjectContext;
+
 
 + (id)instance {
     return [self sharedManager];
@@ -51,7 +53,13 @@
 }
 
 - (NSString *)databaseName {
-    if (_databaseName != nil) return _databaseName;
+    if (_databaseName != nil) {
+        if(![_databaseName hasSuffix:@".sqlite"]) {
+            _databaseName = [_databaseName stringByAppendingString:@".sqlite"];
+        }
+
+        return _databaseName;   
+    }
 
     _databaseName = [[[self appName] stringByAppendingString:@".sqlite"] copy];
     return _databaseName;
@@ -80,8 +88,27 @@
 - (NSManagedObjectModel *)managedObjectModel {
     if (_managedObjectModel) return _managedObjectModel;
 
-    NSURL *modelURL = [[NSBundle bundleForClass:[self class]] URLForResource:[self modelName] withExtension:@"momd"];
-    _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+    //NSURL *modelURL = [[NSBundle bundleForClass:[self class]] URLForResource:[self modelName] withExtension:@"momd"];
+    //_managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+
+    if(_modelName) {
+        // Handle situation if there is a preexisting mom file causing errors
+        NSFileManager *fileManager = [[NSFileManager alloc] init];
+        NSString *modelPath = [[NSBundle mainBundle] pathForResource:_modelName ofType:@"momd"];
+        if(![fileManager fileExistsAtPath:modelPath]) {
+            modelPath = [[NSBundle mainBundle] pathForResource:_modelName ofType:@"mom"];
+        }
+        
+        NSURL *modelURL = [NSURL fileURLWithPath:modelPath];
+        _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+    
+        if (_managedObjectModel != nil) {
+            return _managedObjectModel;
+        }
+    }
+    // fall back to managedobjectmodel
+    _managedObjectModel = [NSManagedObjectModel mergedModelFromBundles:nil];
+
     return _managedObjectModel;
 }
 
@@ -98,17 +125,34 @@
 }
 
 - (BOOL)saveContext {
+    // save background
+    if ((self.backgroundManagedObjectContext!= nil) && self.backgroundManagedObjectContext.hasChanges) {
+        [self.backgroundManagedObjectContext save:&error];
+    }
+
     if (self.managedObjectContext == nil) return NO;
     if (![self.managedObjectContext hasChanges])return NO;
 
-    NSError *error = nil;
-
-    if (![self.managedObjectContext save:&error]) {
-        NSLog(@"Unresolved error in saving context! %@, %@", error, [error userInfo]);
-        return NO;
-    }
-
+    [self.managedObjectContext performBlock:^{
+        NSError *parentError = nil;
+        if ([self.managedObjectContext save:&parentError]) {
+            DebugLog(@"VXDataManager context save.");
+        } else {
+            DebugLog(@"VXDataManager context save failed: %@", parentError);
+            abort();
+        };
+    }];
+    
     return YES;
+}
+
+#pragma mark - Public concurrence additions
+- (NSManagedObjectContext *)backgroundManagedObjectContext {
+    if (_backgroundManagedObjectContext) return _backgroundManagedObjectContext;
+    
+    _backgroundManagedObjectContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
+    _backgroundManagedObjectContext.parentContext = self.context;
+    return _backgroundManagedObjectContext;
 }
 
 
