@@ -87,21 +87,26 @@
 
 - (NSManagedObjectModel *)managedObjectModel {
     if (_managedObjectModel) return _managedObjectModel;
-
+	
     //NSURL *modelURL = [[NSBundle bundleForClass:[self class]] URLForResource:[self modelName] withExtension:@"momd"];
     //_managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
 
-    if(_modelName) {
-        // Handle situation if there is a preexisting mom file causing errors
-        NSFileManager *fileManager = [[NSFileManager alloc] init];
-        NSString *modelPath = [[NSBundle mainBundle] pathForResource:_modelName ofType:@"momd"];
-        if(![fileManager fileExistsAtPath:modelPath]) {
-            modelPath = [[NSBundle mainBundle] pathForResource:_modelName ofType:@"mom"];
-        }
+	if(_modelName) {
+		NSURL *modelURL = [[NSBundle bundleForClass:[self class]] URLForResource:[self modelName] withExtension:@"momd"];
+		
+		if (modelURL != nil) {
+			_managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+		} else {
+        	NSFileManager *fileManager = [[NSFileManager alloc] init];
+        	NSString *modelPath = [[NSBundle mainBundle] pathForResource:_modelName ofType:@"momd"];
+        	if(![fileManager fileExistsAtPath:modelPath]) {
+            	modelPath = [[NSBundle mainBundle] pathForResource:_modelName ofType:@"mom"];
+        	}
         
-        NSURL *modelURL = [NSURL fileURLWithPath:modelPath];
-        _managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
-    
+        	NSURL *modelURL = [NSURL fileURLWithPath:modelPath];
+        	_managedObjectModel = [[NSManagedObjectModel alloc] initWithContentsOfURL:modelURL];
+		}
+		
         if (_managedObjectModel != nil) {
             return _managedObjectModel;
         }
@@ -125,6 +130,8 @@
 }
 
 - (BOOL)saveContext {
+	NSError *error = nil;
+	
     // save background
     if ((self.backgroundManagedObjectContext!= nil) && self.backgroundManagedObjectContext.hasChanges) {
         [self.backgroundManagedObjectContext save:&error];
@@ -136,9 +143,9 @@
     [self.managedObjectContext performBlock:^{
         NSError *parentError = nil;
         if ([self.managedObjectContext save:&parentError]) {
-            DebugLog(@"VXDataManager context save.");
+            NSLog(@"VXDataManager context save.");
         } else {
-            DebugLog(@"VXDataManager context save failed: %@", parentError);
+            NSLog(@"VXDataManager context save failed: %@", parentError);
             abort();
         };
     }];
@@ -151,7 +158,7 @@
     if (_backgroundManagedObjectContext) return _backgroundManagedObjectContext;
     
     _backgroundManagedObjectContext = [[NSManagedObjectContext alloc] initWithConcurrencyType:NSPrivateQueueConcurrencyType];
-    _backgroundManagedObjectContext.parentContext = self.context;
+    _backgroundManagedObjectContext.parentContext = self.managedObjectContext;
     return _backgroundManagedObjectContext;
 }
 
